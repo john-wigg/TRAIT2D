@@ -1,0 +1,526 @@
+.. only:: html
+
+    .. note::
+        :class: sphx-glr-download-link-note
+
+        Click :ref:`here <sphx_glr_download_auto_examples_plot_tutorial.py>`     to download the full example code
+    .. rst-class:: sphx-glr-example-title
+
+    .. _sphx_glr_auto_examples_plot_tutorial.py:
+
+
+TRAIT Tutorial
+==============
+
+This example demonstrates some of the library's core features, namely simulation and analysis of 2D diffusion tracks. You will learn about:
+
+Simulation
+~~~~~~~~~~
+
+- Simulating multiple tracks with different diffusion models
+
+Analysis
+~~~~~~~~
+
+- Apparent Diffusion Coefficient (ADC) analysis of a single track
+- ADC analysis of multiple tracks in bulk
+- Retreiving an analysis summary of multiple tracks
+- Filtering tracks by diffusion category
+
+Simulate tracks
+---------------
+
+First, import the required simulators:
+
+
+.. code-block:: default
+
+
+    from trait2d.simulators import BrownianDiffusion
+    from trait2d.simulators import HoppingDiffusion
+
+
+
+
+
+
+
+
+A simulator can be initialised with different parameters. For Brownian diffusion, we choose the following:
+
+
+.. code-block:: default
+
+
+    params = dict()
+    params["Tmax"] = 0.5 # Maximum simulation time (s)
+    params["dt"] = 1e-4 # Simulation time resolution (s)
+    params["dL"] = 1e-12 # Simulation spatial resolution (m)
+    params["d"] = 1e-12 # Diffusion coefficient (m^2/s)
+    params["L"] = 1e-5 # Simulation domain size (m)
+    params["seed"] = 42 # Seed to initialize the random generator (for reproducibility)
+    params["quantize"] = False # Quantize the position to the simulation spatial resolution grid.
+
+    simulator_brownian = BrownianDiffusion(**params)
+
+
+
+
+
+
+
+
+Parameters differ between simulators.
+
+
+.. code-block:: default
+
+
+    params = dict()
+    params["Tmax"] = 0.5 # Maximum simulation time (s)
+    params["dt"] = 1e-4 # Simulation time resolution (s)
+    params["dL"] = 1e-8 # Simulation spatial resolution (m)
+    params["Df"] = 8e-13 # Free diffusion coefficient [m^2/s]
+    params["L"] = 1e-5 # Simulation domain size (m)
+    params["HP"] = 0.01 # Hopping probability [0-1]
+    params["HL"] = 1e-6 # Average compartment diameter/length [m]
+    params["seed"] = 42 # Seed to initialize the random generator (for reproducibility)
+    params["quantize"] = False # Quantize the position to the simulation spatial resolution grid.
+
+    simulator_hop = HoppingDiffusion(**params)
+
+
+
+
+
+
+
+
+After initialisation the simulations can be run. The results will be stored in the simulator object.
+
+
+.. code-block:: default
+
+
+    simulator_brownian.run();
+    simulator_hop.run();
+
+
+
+
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+
+
+
+
+The simulated trajectoies can be plotted:
+
+
+.. code-block:: default
+
+
+    simulator_brownian.display_trajectory()
+    simulator_hop.display_trajectory()
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_tutorial_001.png
+    :alt: Diffusion
+    :class: sphx-glr-single-img
+
+
+
+
+
+It is also possible to export the simulated tracks as videos using the ``trait2d.simulators.iscat_movie`` class. Currently, the tracks need first to be saved e.g. as a ``.csv`` using ``BrownianDiffusion.save()`` (or any other Diffusion model) and then load them again using ``iscat_movie.load_tracks()``. You also need to load a PSF with ``iscat_movie.load_psf()``.
+
+Analyse tracks
+--------------
+
+Before we start fitting our data, we need to add some models. ``trait2d.analysis.models`` contains a few models that we can add to ``ModelDB``. All models added this way will be used during analysis.
+
+
+.. code-block:: default
+
+
+    from trait2d.analysis import ModelDB
+    from trait2d.analysis.models import ModelBrownian, ModelConfined, ModelHop
+
+    ModelDB().add_model(ModelBrownian)
+    ModelDB().add_model(ModelConfined)
+    ModelDB().add_model(ModelHop)
+
+
+
+
+
+
+
+
+Single tracks are stored in a ``Track`` object.
+
+
+.. code-block:: default
+
+
+    from trait2d.analysis import Track
+
+
+
+
+
+
+
+
+We can create a single track from our last simulation:
+
+
+.. code-block:: default
+
+
+    single_track = Track.from_dict(simulator_brownian.trajectory)
+
+
+
+
+
+
+
+
+We can now do ADC analysis on the track:
+
+
+.. code-block:: default
+
+
+    results = single_track.adc_analysis(fit_max_time=0.5e-1)
+
+
+
+
+
+
+
+
+Analysis results like the calculated values for :math:`D_{app}`, fit parameters and much more are returned in a dictionary. We can also retreive the dictionary of the last analysis at any time with ``get_adc_analysis_results``.
+
+
+.. code-block:: default
+
+
+    fit_results = results["fit_results"]
+    best_model = results["best_model"]
+    print(fit_results)
+    print(best_model)
+
+    single_track.plot_adc_analysis_results()
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_tutorial_002.png
+    :alt: Diffusion Category: ModelBrownian
+    :class: sphx-glr-single-img
+
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    {'ModelBrownian': {'params': array([1.07084193e-12, 4.80953517e-09]), 'errors': array([1.59603245e-15, 2.11644113e-10]), 'bic': -30815.618811150267, 'KSTestStat': 0.4899598393574297, 'KStestPValue': 1.360060612689e-54, 'rel_likelihood': 1.0}, 'ModelConfined': {'params': array([1.07098883e-12, 4.80194904e-09, 9.88584102e+01]), 'errors': array([1.59804731e-15, 2.12014431e-10, 7.88054465e-24]), 'bic': -30809.388840549294, 'KSTestStat': 0.4899598393574297, 'KStestPValue': 1.360060612689e-54, 'rel_likelihood': 0.044379159494757216}, 'ModelHop': {'params': array([1.07083900e-12, 2.28983335e-25, 4.81525068e-09, 1.22761905e-07]), 'errors': array([1.69174292e-15, 1.84762101e-10, 1.40540672e-09, 4.07808768e-25]), 'bic': -30803.293478700667, 'KSTestStat': 0.4899598393574297, 'KStestPValue': 1.360060612689e-54, 'rel_likelihood': 0.0021066290307529562}}
+    ModelBrownian
+
+
+
+
+Multiple tracks are then stored in a ``ListOfTracks`` object.
+
+
+.. code-block:: default
+
+
+    from trait2d.analysis import ListOfTracks
+
+
+
+
+
+
+
+
+For now, we just simulate some more tracks and create a single ``ListOfTracks`` from these tracks. Multiple tracks can also be loaded from a single file using ``ListOfTracks.from_file()``.
+
+
+.. code-block:: default
+
+
+    import random
+    tracks = []
+    for i in range(10):
+        simulator_brownian.run()
+        simulator_hop.run()
+        tracks.append(Track.from_dict(simulator_brownian.trajectory))
+        tracks.append(Track.from_dict(simulator_hop.trajectory))
+    
+    tracks = ListOfTracks(tracks)
+
+
+
+
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+    Free diffusion simulation was completed in 5000 iterations.
+    Hopping diffusion simulation was completed in 5000 iterations.
+
+
+
+
+In order to set initial parameters or bounds for the fits, we need to modify the models inside ``ModelDB``. These will then be applied during all analysis from this point on.
+
+
+.. code-block:: default
+
+
+    ModelDB().get_model(ModelBrownian).initial = fit_results["ModelBrownian"]["params"]
+    ModelDB().get_model(ModelConfined).initial = fit_results["ModelConfined"]["params"]
+    ModelDB().get_model(ModelHop).initial = fit_results["ModelHop"]["params"]
+
+
+
+
+
+
+
+
+Here, we set all initial parameters to the results of our single fit from before.
+
+Now that we set our initial guesses, let's analyse the remaining tracks at once.
+
+Enabling logarithmic sampling is a good idea since the time axis will be scaled logarithmically by default. We can also set the maximum time on the time for which to fit.
+
+``adc_analysis`` will return a list containing the indices of all tracks for which a fit has failed. These can then be retreived with ``get_track`` and analysed further.
+
+
+.. code-block:: default
+
+
+    tracks.adc_analysis(fit_max_time=50e-3, enable_log_sampling=True)
+
+
+
+
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+    /home/runner/work/TRAIT2D/TRAIT2D/trait2d/analysis/__init__.py:346: UserWarning: ADC analysis failed for 5/20 tracks. Consider raising the maximum function evaluations using the maxfev keyword argument. To get a more detailed stacktrace, run the ADC analysis for a single track.
+      warnings.warn("ADC analysis failed for {}/{} tracks. "
+
+    [5, 11, 15, 18, 19]
+
+
+
+``adc_summary`` gives an overview of the analysis results including optional plots, the averaged parameters for each model, the averaged MSD for each model and the averaged $D_{app}$ for each model.
+
+(We need to set ``interpolation = True`` since some of the time differences in the simulated tracks deviate *slightly* from the expected value.)
+
+
+.. code-block:: default
+
+
+    tracks.adc_summary(plot_dapp=True, plot_pie_chart=True, interpolation=True)
+
+
+
+
+.. rst-class:: sphx-glr-horizontal
+
+
+    *
+
+      .. image:: /auto_examples/images/sphx_glr_plot_tutorial_003.png
+          :alt: plot tutorial
+          :class: sphx-glr-multi-img
+
+    *
+
+      .. image:: /auto_examples/images/sphx_glr_plot_tutorial_004.png
+          :alt: plot tutorial
+          :class: sphx-glr-multi-img
+
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+
+    {'sectors': {'ModelBrownian': 0.15, 'ModelHop': 0.15, 'ModelConfined': 0.45, 'not catergorized': 0.25}, 'average_params': {'ModelBrownian': array([9.36663428e-13, 7.54037932e-09]), 'ModelHop': array([7.73710327e-13, 3.64206361e-09, 3.06569235e-09, 1.31688047e-08]), 'ModelConfined': array([9.09198271e-13, 8.13932216e-09, 4.82608904e-02])}, 't': array([0.00000000e+00, 1.00020004e-04, 2.00040008e-04, ...,
+           4.99799960e-01, 4.99899980e-01, 5.00000000e-01]), 'average_msd': {'ModelBrownian': array([3.67828789e-16, 7.36058851e-16, 1.10582505e-15, ...,
+           9.47681562e-13, 9.47176891e-13, 9.41923660e-13]), 'ModelHop': array([3.42432536e-16, 6.77574501e-16, 1.01087098e-15, ...,
+           3.54477807e-12, 3.52828705e-12, 3.51251321e-12]), 'ModelConfined': array([3.71877083e-16, 7.42276964e-16, 1.10944893e-15, ...,
+           6.76096840e-13, 6.77444724e-13, 6.76479016e-13])}, 'average_dapp': {'ModelBrownian': array([1.37928026e-12, 1.10393686e-12, 1.03654380e-12, ...,
+           4.74251886e-13, 4.73904449e-13, 4.71181763e-13]), 'ModelHop': array([1.28396458e-12, 1.01619318e-12, 9.47522387e-13, ...,
+           1.77392677e-12, 1.76532067e-12, 1.75707676e-12]), 'ModelConfined': array([1.39446009e-12, 1.11326271e-12, 1.03994124e-12, ...,
+           3.38341715e-13, 3.38948380e-13, 3.38397466e-13])}}
+
+
+
+Now that analysis is done we can also retrieve all tracks that fit a certain diffusion category best:
+
+
+.. code-block:: default
+
+
+    tracks_brownian = tracks.get_sublist(model=ModelBrownian)
+    tracks_brownian.adc_summary(plot_dapp=True, interpolation=True)
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_tutorial_005.png
+    :alt: plot tutorial
+    :class: sphx-glr-single-img
+
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+
+    {'sectors': {'ModelBrownian': 1.0, 'not catergorized': 0.0}, 'average_params': {'ModelBrownian': array([9.36663428e-13, 7.54037932e-09])}, 't': array([0.00000000e+00, 1.00020004e-04, 2.00040008e-04, ...,
+           4.99799960e-01, 4.99899980e-01, 5.00000000e-01]), 'average_msd': {'ModelBrownian': array([3.67828789e-16, 7.36058851e-16, 1.10582505e-15, ...,
+           9.47681562e-13, 9.47176891e-13, 9.41923660e-13])}, 'average_dapp': {'ModelBrownian': array([1.37928026e-12, 1.10393686e-12, 1.03654380e-12, ...,
+           4.74251886e-13, 4.73904449e-13, 4.71181763e-13])}}
+
+
+
+As mentioned before, we can retreive the analysis results for any track, at any time. Single tracks can be received with ``ListOfTracks.get_track``.
+
+
+.. code-block:: default
+
+
+    tracks_brownian.get_track(0).get_adc_analysis_results()
+
+
+
+
+
+.. rst-class:: sphx-glr-script-out
+
+ Out:
+
+ .. code-block:: none
+
+
+    {'Dapp': array([1.47172202e-12, 1.18386191e-12, 1.10567031e-12, ...,
+           4.02185247e-13, 3.98742713e-13, 3.92153520e-13]), 'Dapp_err': array([2.04093548e-14, 1.67352757e-14, 1.55023831e-14, ...,
+           6.90030126e-15, 1.02881218e-14, 1.22087793e-14]), 'fit_indices': [0, 1, 3, 6, 11, 19, 31, 50, 80, 128, 204, 324], 'fit_results': {'ModelBrownian': {'params': array([1.11549229e-12, 6.06766928e-09]), 'errors': array([2.86763128e-14, 5.42274823e-10]), 'bic': -718.2062930853527, 'KSTestStat': 0.4166666666666667, 'KStestPValue': 0.2557751845677543, 'rel_likelihood': 1.0}, 'ModelConfined': {'params': array([1.11553826e-12, 6.06685967e-09, 9.48482172e+01]), 'errors': array([3.02472818e-14, 5.71995845e-10, 9.89327892e-23]), 'bic': -715.7065743483263, 'KSTestStat': 0.4166666666666667, 'KStestPValue': 0.2557751845677543, 'rel_likelihood': 0.28654509128900624}, 'ModelHop': {'params': array([1.21229182e-12, 1.44110020e-10, 1.27047692e-09, 2.43791867e-09]), 'errors': array([5.64207943e-14, 6.02023571e-08, 1.17395405e-08, 3.55867610e-09]), 'bic': -703.576161682656, 'KSTestStat': 0.75, 'KStestPValue': 0.0014969550573265746, 'rel_likelihood': 0.0006654375915249957}}, 'best_model': 'ModelBrownian'}
+
+
+
+We can also plot them:
+
+
+.. code-block:: default
+
+
+    tracks_brownian.get_track(0).plot_adc_analysis_results()
+
+
+
+
+.. image:: /auto_examples/images/sphx_glr_plot_tutorial_006.png
+    :alt: Diffusion Category: ModelBrownian
+    :class: sphx-glr-single-img
+
+
+
+
+
+It is a good idea to use `ModelDB().cleanup()` at the end of your notebooks to remove all models again. Otherwise they may carry over into other open notebooks.
+
+
+.. code-block:: default
+
+
+    ModelDB().cleanup()
+
+
+
+
+
+
+
+.. rst-class:: sphx-glr-timing
+
+   **Total running time of the script:** ( 0 minutes  19.286 seconds)
+
+
+.. _sphx_glr_download_auto_examples_plot_tutorial.py:
+
+
+.. only :: html
+
+ .. container:: sphx-glr-footer
+    :class: sphx-glr-footer-example
+
+
+
+  .. container:: sphx-glr-download sphx-glr-download-python
+
+     :download:`Download Python source code: plot_tutorial.py <plot_tutorial.py>`
+
+
+
+  .. container:: sphx-glr-download sphx-glr-download-jupyter
+
+     :download:`Download Jupyter notebook: plot_tutorial.ipynb <plot_tutorial.ipynb>`
+
+
+.. only:: html
+
+ .. rst-class:: sphx-glr-signature
+
+    `Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_
